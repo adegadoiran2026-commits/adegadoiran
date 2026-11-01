@@ -471,7 +471,9 @@ function renderCash(){
 $("periods").onclick=e=>{const b=e.target.closest("[data-p]");if(!b)return;period=b.dataset.p;pressed($("periods"),b);renderCash();};
 async function setStatus(id,status,okMsg,btn){
   btn.disabled=true;
-  const {error}=await db.rpc("admin_manage_order",{p_order_id:id,p_action:"status",p_payload:{status}});
+  const {error}=status==="cancelado"
+    ? await db.rpc("admin_cancel_order",{p_order_id:id})
+    : await db.rpc("admin_manage_order",{p_order_id:id,p_action:"status",p_payload:{status}});
   if(error){toast("Não foi possível atualizar: "+error.message,1);btn.disabled=false;return;}
   toast(okMsg);await Promise.all([loadCash(),loadDrinks()]);}
 $("pending").onclick=e=>{
