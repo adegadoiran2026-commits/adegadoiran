@@ -171,6 +171,8 @@ input.bad{border-color:#ff6b5e}
 .pix button{background:var(--gold);color:#1a1108;border:0;border-radius:8px;padding:8px 14px;font-weight:600}
 .dfoot{padding:14px 16px;border-top:1px solid var(--line);background:var(--bg)}
 .sumline{display:flex;justify-content:space-between;font-size:14px;color:var(--mute)}
+.freehint{font-size:13px;color:var(--mute);margin:-2px 0 6px}
+.freehint.ok{color:#1f7a3d;font-weight:600}
 .total{display:flex;justify-content:space-between;font:800 28px var(--head);margin:4px 0 10px}
 .toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:var(--ink);color:#fff;box-shadow:0 6px 20px rgba(0,0,0,.25);padding:10px 16px;border-radius:10px;z-index:60;font-weight:600;display:none;max-width:90%;text-align:center}
 
@@ -238,7 +240,7 @@ input.bad{border-color:#ff6b5e}
       <div><b>Pix, dinheiro ou cartão</b><span>Pague do jeito que preferir</span></div>
       <div><b>Pedido no WhatsApp</b><span>Direto com a adega</span></div>
       <div><b>Caixa fechada</b><span>Preço menor por unidade</span></div>
-      <div><b>Entrega ou retirada</b><span>Você escolhe</span></div>
+      <div><b>Entrega ou retirada</b><span id="trustDeliv">Você escolhe</span></div>
     </div>
   </div>
 </div>
@@ -307,6 +309,7 @@ input.bad{border-color:#ff6b5e}
     <div class="dfoot">
       <div class="sumline"><span>Produtos</span><span id="subTot">R$ 0,00</span></div>
       <div class="sumline"><span id="deliveryFeeLabel">Entrega</span><span id="feeVal">R$ 0,00</span></div>
+      <div class="freehint hidden" id="freeHint"></div>
       <div class="total"><span>Total</span><span id="tot">R$ 0,00</span></div>
       <button class="btn wa" id="send" style="width:100%">Enviar pedido no WhatsApp</button>
     </div>
@@ -323,7 +326,8 @@ const CONFIG = {
   pixKey: "+559391773665",
   pixType: "Celular",
   pixName: "CG DISTRIBUIÇÃO E COMÉRCIO",
-  deliveryFee: 4
+  deliveryFee: 4,
+  freeDeliveryFrom: 50
 };
 /* ========================== */
 let sb=null;
@@ -345,6 +349,7 @@ const CATS = {
   aguas:["Águas","Com e sem gás."],
   sucos:["Sucos","Para acompanhar."],
   isotonicos:["Isotônicos","Repositores e isotônicos."],
+  petiscos:["Petiscos e mercearia","Salgadinhos, doces e itens para beliscar."],
   cigarros:["Cigarros","Venda apenas para maiores de 18 anos."]
 };
 /* converte a categoria antiga do banco (cervejas, destilados, tabacaria) na aba nova, usando nome e tamanho */
@@ -422,7 +427,7 @@ async function loadStoreData(){
       const v=String(it.value);
       if(it.key==="whatsapp"&&/X|COLOQUE/i.test(v)) continue;
       if(it.key==="pixKey"&&/COLOQUE/i.test(v)) continue;
-      CONFIG[it.key]=it.key==="deliveryFee"?Number(v):v;
+      CONFIG[it.key]=(it.key==="deliveryFee"||it.key==="freeDeliveryFrom")?Number(v):v;
     }
   }catch(err){
     console.warn("Usando catálogo local:",err.message);
@@ -434,6 +439,7 @@ async function loadStoreData(){
   PRODUCTS=(rows||[]).filter(r=>Number(r.unit_price)>0).map(fromRow);
   $("#pixKey").textContent=CONFIG.pixKey; $("#pixType").textContent=CONFIG.pixType; $("#pixName").textContent=CONFIG.pixName;
   $("#waFab").href=waLink("Olá! Vim pelo site da Adega do Iran.");
+  if(freeFrom()>0) $("#trustDeliv").textContent=`Entrega grátis a partir de ${brl(freeFrom())}`;
   restoreCart(); buildTabs(); catalog(); refresh();
 }
 
@@ -506,7 +512,9 @@ function lineInfo(key){
   return {p,q,price,label,sub:price*q};
 }
 const productsTotal=()=>Object.keys(cart).reduce((s,k)=>s+lineInfo(k).sub,0);
-const deliveryFee=()=>ent==="Entrega"?Number(CONFIG.deliveryFee||0):0;
+const freeFrom=()=>Number(CONFIG.freeDeliveryFrom||0);
+const isFreeDelivery=()=>freeFrom()>0&&Math.round(productsTotal()*100)>=Math.round(freeFrom()*100);
+const deliveryFee=()=>ent==="Entrega"&&!isFreeDelivery()?Number(CONFIG.deliveryFee||0):0;
 const total=()=>productsTotal()+deliveryFee();
 const count=()=>Object.values(cart).reduce((s,q)=>s+q,0);
 
@@ -534,7 +542,13 @@ function refresh(){
   document.body.classList.toggle("hascart",n>0);
   $("#subTot").textContent=brl(productsTotal());
   $("#deliveryFeeLabel").textContent=ent==="Entrega"?"Taxa de entrega":"Retirada no local";
-  $("#feeVal").textContent=ent==="Entrega"?brl(deliveryFee()):"Grátis";
+  $("#feeVal").textContent=ent==="Entrega"?(deliveryFee()>0?brl(deliveryFee()):"Grátis"):"Grátis";
+  const fh=$("#freeHint");
+  if(ent==="Entrega"&&freeFrom()>0&&keys.length){
+    const falta=freeFrom()-productsTotal();
+    fh.className="freehint"+(falta<=0?" ok":"");
+    fh.textContent=falta<=0?"Entrega grátis neste pedido!":`Faltam ${brl(falta)} em produtos para a entrega ser grátis.`;
+  }else{fh.className="freehint hidden";fh.textContent="";}
   $("#tot").textContent=brl(t);
   $("#lines").innerHTML=keys.length?keys.map(k=>{const i=lineInfo(k);
     return `<div class="line-item"><img src="img/${esc(i.p.image)}.webp" alt="" onerror="this.onerror=null;this.src=PH"><div><div class="n">${esc(i.label)}</div><div class="t">${brl(i.price)} cada · ${brl(i.sub)}</div></div>
@@ -557,7 +571,7 @@ async function send(){
   let m=`*Novo pedido, Adega do Iran*\n\n*Cliente:* ${nome}\n\n*Itens:*\n`;
   Object.keys(cart).forEach(k=>{const i=lineInfo(k);m+=`${i.q}x ${i.label}: ${brl(i.sub)}\n`;});
   m+=`\n*Total dos produtos:* ${brl(productsTotal())}\n`;
-  if(ent==="Entrega")m+=`*Taxa de entrega:* ${brl(deliveryFee())}\n`;
+  if(ent==="Entrega")m+=`*Taxa de entrega:* ${deliveryFee()>0?brl(deliveryFee()):"Grátis"}\n`;
   m+=`*Total do pedido:* ${brl(total())}\n*Recebimento:* ${ent}\n`;
   if(ent==="Entrega"){m+=`*Endereço:* ${end}\n`;const r=$("#ref").value.trim();if(r)m+=`*Referência:* ${r}\n`;}
   m+=`*Pagamento:* ${pay}`;

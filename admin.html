@@ -258,6 +258,7 @@ details summary{cursor:pointer;padding:6px 0}
           <div><label for="sPixType">Tipo da chave</label><input id="sPixType" placeholder="Celular, CNPJ, e-mail"></div>
           <div><label for="sFee">Taxa de entrega (R$)</label><input id="sFee" type="number" min="0" step="0.5"></div>
         </div>
+        <label for="sFree">Entrega grátis a partir de (R$) — deixe 0 para desativar</label><input id="sFree" type="number" min="0" step="0.5">
         <label for="sPixName">Nome do recebedor</label><input id="sPixName">
         <div class="foot"><button class="btn gold" type="submit">Salvar</button></div>
       </form>
@@ -351,7 +352,7 @@ const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${Str
 const fmtDay=s=>new Date(s+"T12:00:00").toLocaleDateString("pt-BR");
 function toast(msg,bad){const t=$("toast");t.textContent=msg;t.className=bad?"bad":"";clearTimeout(toast.t);toast.t=setTimeout(()=>t.className="hidden",3200);}
 function pressed(box,btn){box.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b===btn));}
-const CATLIST=[["cervejas-lata","Cervejas em lata"],["cervejas-long-neck","Long neck"],["energeticos","Energéticos"],["refrigerantes","Refrigerantes"],["whisky","Whisky"],["vodka","Vodka"],["gin","Gin"],["cachacas","Cachaça e conhaque"],["aperitivos","Aperitivos e outros"],["drinks","Drinks prontos"],["vinhos","Vinhos"],["aguas","Águas"],["sucos","Sucos"],["isotonicos","Isotônicos"],["cigarros","Cigarros"]];
+const CATLIST=[["cervejas-lata","Cervejas em lata"],["cervejas-long-neck","Long neck"],["energeticos","Energéticos"],["refrigerantes","Refrigerantes"],["whisky","Whisky"],["vodka","Vodka"],["gin","Gin"],["cachacas","Cachaça e conhaque"],["aperitivos","Aperitivos e outros"],["drinks","Drinks prontos"],["vinhos","Vinhos"],["aguas","Águas"],["sucos","Sucos"],["isotonicos","Isotônicos"],["petiscos","Petiscos e mercearia"],["cigarros","Cigarros"]];
 const CATNAMES=Object.fromEntries(CATLIST);
 const CATORDER=CATLIST.map(c=>c[0]);
 const catRank=k=>{const i=CATORDER.indexOf(k);return i<0?99:i;};
@@ -758,12 +759,13 @@ $("updBtn").onclick=async()=>{
 async function loadSettings(){
   const {data}=await db.from("store_settings").select("key,value");const v={};(data||[]).forEach(x=>v[x.key]=x.value);
   try{extrasMap=JSON.parse(v.extras||"{}")||{};}catch(_){extrasMap={};}
-  $("sWa").value=v.whatsapp||"";$("sPix").value=v.pixKey||"";$("sPixType").value=v.pixType||"";$("sPixName").value=v.pixName||"";$("sFee").value=v.deliveryFee??"";
+  $("sWa").value=v.whatsapp||"";$("sPix").value=v.pixKey||"";$("sPixType").value=v.pixType||"";$("sPixName").value=v.pixName||"";$("sFee").value=v.deliveryFee??"";$("sFree").value=v.freeDeliveryFrom??"";
   updateImport();
 }
 $("setForm").onsubmit=async e=>{e.preventDefault();
   const vals={whatsapp:$("sWa").value.replace(/\D/g,""),pixKey:$("sPix").value.trim(),pixType:$("sPixType").value.trim(),pixName:$("sPixName").value.trim()};
   if($("sFee").value!=="")vals.deliveryFee=String(Number($("sFee").value));
+  if($("sFree").value!=="")vals.freeDeliveryFrom=String(Number($("sFree").value));
   for(const [key,value] of Object.entries(vals)){const {error}=await db.from("store_settings").upsert({key,value},{onConflict:"key"});if(error)return toast("Erro ao salvar: "+error.message,1);}
   toast("Dados da loja salvos.");};
 </script>

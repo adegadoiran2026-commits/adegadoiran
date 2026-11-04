@@ -1478,5 +1478,101 @@
   "unit_price": 19,
   "image": "malboro-tropical",
   "update": true
+ },
+ {
+  "id": "pringles-creme-e-cebola-104-g",
+  "name": "Pringles Creme e Cebola",
+  "size": "104 g",
+  "category": "petiscos",
+  "unit_price": 12.0,
+  "image": "pringles-creme-e-cebola-104-g"
+ },
+ {
+  "id": "pringles-original-35-g",
+  "name": "Pringles Original",
+  "size": "35 g",
+  "category": "petiscos",
+  "unit_price": 3.5,
+  "image": "pringles-original-35-g"
+ },
+ {
+  "id": "pringles-original-104-g",
+  "name": "Pringles Original",
+  "size": "104 g",
+  "category": "petiscos",
+  "unit_price": 12.0,
+  "image": "pringles-original-104-g"
+ },
+ {
+  "id": "caixa-de-chocolate-garoto-220-g",
+  "name": "Caixa de Chocolate Garoto",
+  "size": "220 g",
+  "category": "petiscos",
+  "unit_price": 13.5,
+  "image": "caixa-de-chocolate-garoto-220-g"
+ },
+ {
+  "id": "cup-noodles-carne-69-g",
+  "name": "Cup Noodles Carne",
+  "size": "69 g",
+  "category": "petiscos",
+  "unit_price": 6.5,
+  "image": "cup-noodles-carne-69-g"
+ },
+ {
+  "id": "cup-noodles-galinha-caipira-69-g",
+  "name": "Cup Noodles Galinha Caipira",
+  "size": "69 g",
+  "category": "petiscos",
+  "unit_price": 6.5,
+  "image": "cup-noodles-galinha-caipira-69-g"
+ },
+ {
+  "id": "leite-condensado-piracanjuba-395-g",
+  "name": "Leite Condensado Piracanjuba",
+  "size": "395 g",
+  "category": "petiscos",
+  "unit_price": 8.0,
+  "image": "leite-condensado-piracanjuba-395-g"
+ },
+ {
+  "id": "salgadinho-torcida-bacon-35-g",
+  "name": "Salgadinho Torcida Bacon",
+  "size": "35 g",
+  "category": "petiscos",
+  "unit_price": 2.0,
+  "image": "salgadinho-torcida-bacon-35-g"
+ },
+ {
+  "id": "salgadinho-torcida-churrasco-35-g",
+  "name": "Salgadinho Torcida Churrasco",
+  "size": "35 g",
+  "category": "petiscos",
+  "unit_price": 2.0,
+  "image": "salgadinho-torcida-churrasco-35-g"
+ },
+ {
+  "id": "salgadinho-torcida-costelinha-com-limao-35-g",
+  "name": "Salgadinho Torcida Costelinha com Limão",
+  "size": "35 g",
+  "category": "petiscos",
+  "unit_price": 2.0,
+  "image": "salgadinho-torcida-costelinha-com-limao-35-g"
+ },
+ {
+  "id": "wafer-minueto-supremo-caramelo-e-especiarias-83-g",
+  "name": "Wafer Minueto Supremo Caramelo e Especiarias",
+  "size": "83 g",
+  "category": "petiscos",
+  "unit_price": 2.5,
+  "image": "wafer-minueto-supremo-caramelo-e-especiarias-83-g"
+ },
+ {
+  "id": "wafer-minueto-supremo-chocolate-intense-83-g",
+  "name": "Wafer Minueto Supremo Chocolate Intense",
+  "size": "83 g",
+  "category": "petiscos",
+  "unit_price": 2.5,
+  "image": "wafer-minueto-supremo-chocolate-intense-83-g"
  }
 ]
