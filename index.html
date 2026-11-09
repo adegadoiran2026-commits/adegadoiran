@@ -361,6 +361,7 @@ input.bad{border-color:#ff6b5e}
           <button data-v="Retirada" aria-pressed="false">Retirada</button>
         </div>
         <div class="snote warn hidden" id="delivNote"></div>
+        <div class="snote warn hidden" id="minNote"></div>
         <div id="addrBox">
           <label for="end">Endereço de entrega</label>
           <input type="text" id="end" placeholder="Rua, número, bairro" autocomplete="street-address">
@@ -408,7 +409,8 @@ const CONFIG = {
   pixType: "Celular",
   pixName: "CG DISTRIBUIÇÃO E COMÉRCIO",
   deliveryFee: 4,
-  freeDeliveryFrom: 50
+  freeDeliveryFrom: 50,
+  minDelivery: 30   /* pedido mínimo (só produtos) para entrega; retirada não tem mínimo */
 };
 /* ========================== */
 let sb=null;
@@ -568,7 +570,7 @@ async function loadStoreData(){
       const v=String(it.value);
       if(it.key==="whatsapp"&&/X|COLOQUE/i.test(v)) continue;
       if(it.key==="pixKey"&&/COLOQUE/i.test(v)) continue;
-      CONFIG[it.key]=(it.key==="deliveryFee"||it.key==="freeDeliveryFrom")?Number(v):v;
+      CONFIG[it.key]=(it.key==="deliveryFee"||it.key==="freeDeliveryFrom"||it.key==="minDelivery")?Number(v):v;
     }
   }catch(err){
     console.warn("Usando catálogo local:",err.message);
@@ -580,7 +582,7 @@ async function loadStoreData(){
   PRODUCTS=(rows||[]).filter(r=>Number(r.unit_price)>0).map(fromRow);
   $("#pixKey").textContent=CONFIG.pixKey; $("#pixType").textContent=CONFIG.pixType; $("#pixName").textContent=CONFIG.pixName;
   $("#waFab").href=waLink("Olá! Vim pelo site da Adega do Iran.");
-  if(freeFrom()>0) $("#trustDeliv").textContent=`Entrega grátis a partir de ${brl(freeFrom())}`;
+  if(freeFrom()>0) $("#trustDeliv").textContent=(minDeliv()>0?`Entrega a partir de ${brl(minDeliv())} · `:"")+`grátis a partir de ${brl(freeFrom())}`;
   restoreCart(); buildTabs(); catalog(); refresh();
 }
 
@@ -655,6 +657,8 @@ function lineInfo(key){
 }
 const productsTotal=()=>Object.keys(cart).reduce((s,k)=>s+lineInfo(k).sub,0);
 const freeFrom=()=>Number(CONFIG.freeDeliveryFrom||0);
+const minDeliv=()=>Number(CONFIG.minDelivery||0);
+const belowMin=()=>ent==="Entrega"&&minDeliv()>0&&Math.round(productsTotal()*100)<Math.round(minDeliv()*100);
 const isFreeDelivery=()=>freeFrom()>0&&Math.round(productsTotal()*100)>=Math.round(freeFrom()*100);
 const deliveryFee=()=>ent==="Entrega"&&!isFreeDelivery()?Number(CONFIG.deliveryFee||0):0;
 const total=()=>productsTotal()+deliveryFee();
@@ -687,7 +691,7 @@ function refresh(){
   $("#deliveryFeeLabel").textContent=ent==="Entrega"?"Taxa de entrega":"Retirada no local";
   $("#feeVal").textContent=ent==="Entrega"?(deliveryFee()>0?brl(deliveryFee()):"Grátis"):"Grátis";
   const fh=$("#freeHint");
-  if(ent==="Entrega"&&freeFrom()>0&&keys.length){
+  if(ent==="Entrega"&&freeFrom()>0&&keys.length&&!belowMin()){
     const falta=freeFrom()-productsTotal();
     fh.className="freehint"+(falta<=0?" ok":"");
     fh.textContent=falta<=0?"Entrega grátis neste pedido!":`Faltam ${brl(falta)} em produtos para a entrega ser grátis.`;
@@ -699,8 +703,12 @@ function refresh(){
     :`<div class="empty">Seu carrinho está vazio.<br>Adicione produtos para montar o pedido.</div>`;
   $("#form").classList.toggle("hidden",!keys.length);
   $(".dfoot").classList.toggle("hidden",!keys.length);
-  $("#send").disabled=!keys.length||!ST.open;
-  $("#send").textContent=ST.open?"Enviar pedido no WhatsApp":"Loja fechada";
+  const mn=$("#minNote"),low=keys.length&&belowMin();
+  mn.classList.toggle("hidden",!low);
+  if(low)mn.textContent=`Entrega apenas em pedidos a partir de ${brl(minDeliv())} em produtos. Faltam ${brl(minDeliv()-productsTotal())} para entregarmos, ou escolha retirada na loja (sem valor mínimo).`;
+  const blocked=!ST.open?"Loja fechada":low?`Entrega a partir de ${brl(minDeliv())}`:"";
+  $("#send").disabled=!keys.length||!!blocked;
+  $("#send").textContent=blocked||"Enviar pedido no WhatsApp";
 }
 function toast(msg){const t=$("#toast");t.textContent=msg;t.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display="none",3200);}
 function waLink(text){return `https://wa.me/${CONFIG.whatsapp}${text?`?text=${encodeURIComponent(text)}`:""}`;}
@@ -709,6 +717,7 @@ async function send(){
   const sNow=storeState();
   if(!sNow.open){applyStatus();toast(`Loja fechada no momento. ${reopenText()}`);return;}
   if(ent==="Entrega"&&!sNow.delivery){applyStatus();toast("A entrega acabou de encerrar. Agora só retirada na loja.");return;}
+  if(belowMin()){refresh();toast(`Entrega apenas a partir de ${brl(minDeliv())} em produtos. Adicione mais itens ou escolha retirada.`);return;}
   const nome=$("#nome").value.trim(),end=$("#end").value.trim();
   $("#nome").classList.toggle("bad",!nome);
   if(!nome){toast("Informe seu nome para enviar o pedido.");$("#nome").focus();return;}
