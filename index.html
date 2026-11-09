@@ -195,6 +195,19 @@ input.bad{border-color:#ff6b5e}
 .opts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .opts button{background:#fff;border:1px solid var(--line2);border-radius:10px;padding:12px 4px;min-height:44px;font-size:clamp(14px,4vw,16px)}
 .opts button[aria-pressed=true]{border-color:var(--ink);color:var(--ink);background:rgba(240,183,58,.22);font-weight:600}
+.sstatus{font-size:15px;font-weight:600;padding:9px 0;border-bottom:1px solid var(--line)}
+.sstatus .wrap{display:flex;gap:4px 10px;align-items:center;flex-wrap:wrap}
+.sstatus i{width:10px;height:10px;border-radius:50%;flex:none;background:currentColor}
+.sstatus span{font-weight:500;opacity:.85}
+.sstatus.open{background:#eaf7ef;color:#17753a}
+.sstatus.pickup{background:#fff4dc;color:#8a5a00}
+.sstatus.closed{background:#fdeceb;color:#a3281a}
+.snote{border-radius:10px;padding:10px 12px;font-size:14px;margin:12px 0;line-height:1.35}
+.snote.warn{background:#fff4dc;color:#8a5a00;border:1px solid #f0d49a}
+.snote.err{background:#fdeceb;color:#a3281a;border:1px solid #f1b9b3}
+.add:disabled{background:#d8d3c7;color:#6b6358;cursor:not-allowed}
+.opts button:disabled{opacity:.5;cursor:not-allowed;background:var(--panel2)}
+.btn.wa:disabled{background:#b9b3a6;cursor:not-allowed}
 .pix{background:#fffaf0;border:1px dashed var(--gold-d);border-radius:12px;padding:12px;margin-top:12px;font-size:14px}
 .pix code{display:block;font-size:16px;color:var(--gold-t);word-break:break-all;margin:4px 0 10px}
 .pix button{background:var(--gold);color:#1a1108;border:0;border-radius:8px;padding:8px 14px;font-weight:600}
@@ -289,6 +302,7 @@ input.bad{border-color:#ff6b5e}
 </header>
 
 <main id="topo">
+<div class="sstatus" id="storeStatus" role="status" aria-live="polite"></div>
 <div class="hero">
   <div class="wrap">
     <div>
@@ -336,6 +350,7 @@ input.bad{border-color:#ff6b5e}
   <div class="drawer">
     <div class="dhead"><h2>Seu pedido</h2><button class="x" id="closeCart" aria-label="Fechar">&times;</button></div>
     <div class="dbody">
+      <div class="snote err hidden" id="closedNote"></div>
       <div id="lines"></div>
       <div id="form">
         <label for="nome">Seu nome</label>
@@ -345,6 +360,7 @@ input.bad{border-color:#ff6b5e}
           <button data-v="Entrega" aria-pressed="true">Entrega</button>
           <button data-v="Retirada" aria-pressed="false">Retirada</button>
         </div>
+        <div class="snote warn hidden" id="delivNote"></div>
         <div id="addrBox">
           <label for="end">Endereço de entrega</label>
           <input type="text" id="end" placeholder="Rua, número, bairro" autocomplete="street-address">
@@ -464,6 +480,66 @@ const esc = v => String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">
 const cart = {};              // chave "id|u" ou "id|c"
 let ent = "Entrega", pay = "Pix", filter = "all", query = "";
 
+/* ---------- horário de funcionamento (sempre no fuso de Oriximiná) ---------- */
+/* valores em minutos desde 00:00; fim acima de 1440 = passa da meia-noite (1500 = 01h do dia seguinte) */
+const TZ="America/Santarem";
+const SCHED={
+  semana:{entrega:[540,1290],retirada:[540,1320]},  /* dom a qui: entrega 9h–21h30, retirada 9h–22h */
+  fim:{entrega:[540,1360],retirada:[540,1500]}      /* sex e sáb: entrega 9h–22h40, retirada 9h–01h */
+};
+const schedOf=d=>d===5||d===6?SCHED.fim:SCHED.semana;
+function brNow(){
+  try{
+    const p=new Intl.DateTimeFormat("en-US",{timeZone:TZ,weekday:"short",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date());
+    const g=t=>p.find(x=>x.type===t).value;
+    return {dow:["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].indexOf(g("weekday")),min:(+g("hour")%24)*60+(+g("minute"))};
+  }catch(_){const n=new Date();return {dow:n.getDay(),min:n.getHours()*60+n.getMinutes()};}
+}
+/* horário em que a janela ativa termina (em minutos) ou null se estiver fechada; considera o expediente de ontem que vai além da meia-noite */
+function windowEnd(kind,now=brNow()){
+  const {dow,min}=now, a=schedOf(dow)[kind];
+  if(min>=a[0]&&min<a[1]) return a[1];
+  const y=schedOf((dow+6)%7)[kind];
+  if(min+1440>=y[0]&&min+1440<y[1]) return y[1];
+  return null;
+}
+const hm=m=>{m%=1440;const h=Math.floor(m/60),r=m%60;return r?`${h}h${String(r).padStart(2,"0")}`:`${h}h`;};
+function storeState(now=brNow()){
+  const de=windowEnd("entrega",now),re=windowEnd("retirada",now);
+  return {delivery:de!=null,pickup:re!=null,open:de!=null||re!=null,delEnd:de,pickEnd:re};
+}
+const reopenText=()=>`Abrimos ${brNow().min<540?"hoje":"amanhã"} às 9h.`;
+let ST=storeState(), STKEY="";
+function renderStatus(){
+  const el=$("#storeStatus");
+  if(ST.delivery) el.className="sstatus open", el.innerHTML=`<div class="wrap"><i></i>Aberto agora <span>Entrega até ${hm(ST.delEnd)} · Retirada até ${hm(ST.pickEnd)}</span></div>`;
+  else if(ST.pickup) el.className="sstatus pickup", el.innerHTML=`<div class="wrap"><i></i>Entrega encerrada, só retirada <span>Retirada na loja até ${hm(ST.pickEnd)}</span></div>`;
+  else el.className="sstatus closed", el.innerHTML=`<div class="wrap"><i></i>Fechado no momento <span>${reopenText()}</span></div>`;
+  /* se a entrega fechou e ainda há retirada, troca o pedido para retirada */
+  if(!ST.delivery&&ST.pickup&&ent==="Entrega"){
+    ent="Retirada";
+    document.querySelectorAll("#optEnt button").forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===ent));
+    $("#addrBox").classList.add("hidden");
+  }
+  const bE=document.querySelector('#optEnt [data-v="Entrega"]');
+  bE.disabled=!ST.delivery; bE.textContent=ST.delivery?"Entrega":"Entrega encerrada";
+  const dn=$("#delivNote");
+  dn.classList.toggle("hidden",!(ST.pickup&&!ST.delivery));
+  dn.textContent=`A entrega já encerrou. Agora só é possível retirar na loja, até ${ST.pickEnd?hm(ST.pickEnd):""}.`;
+  const cn=$("#closedNote");
+  cn.classList.toggle("hidden",ST.open);
+  cn.textContent=`Loja fechada, não estamos recebendo pedidos agora. ${reopenText()}`;
+}
+function applyStatus(){
+  ST=storeState();
+  renderStatus();
+  const key=ST.delivery+"|"+ST.pickup;
+  if(key!==STKEY){STKEY=key;if(PRODUCTS.length){catalog();refresh();}}
+}
+setInterval(applyStatus,30000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)applyStatus();});
+applyStatus();
+
 /* ---------- dados ---------- */
 let EXTRAS={};
 function fromRow(r){
@@ -543,6 +619,7 @@ function ctl(key){
   const q=cart[key]||0;
   const [pid]=key.split("|");const p=PRODUCTS.find(x=>x.id===pid);
   if(!p||!p.inStock) return `<span class="soldout">ESGOTADO</span>`;
+  if(!q&&!ST.open) return `<button class="add" disabled>Fechado</button>`;
   return q?`<div class="step"><button data-a="dec" data-k="${esc(key)}" aria-label="Diminuir">&minus;</button><span>${q}</span><button data-a="inc" data-k="${esc(key)}" aria-label="Aumentar">+</button></div>`
           :`<button class="add" data-a="inc" data-k="${esc(key)}">Adicionar</button>`;
 }
@@ -586,6 +663,7 @@ const count=()=>Object.values(cart).reduce((s,q)=>s+q,0);
 function change(key,d){
   const p=PRODUCTS.find(x=>x.id===key.split("|")[0]);
   if(d>0){
+    if(!storeState().open){applyStatus();toast(`Loja fechada no momento. ${reopenText()}`);return;}
     if(!p||!p.inStock){toast("Produto esgotado no momento.");return;}
     if(p.stockQuantity!=null){
       const add=unitsPer(p,key.split("|")[1]);
@@ -621,12 +699,16 @@ function refresh(){
     :`<div class="empty">Seu carrinho está vazio.<br>Adicione produtos para montar o pedido.</div>`;
   $("#form").classList.toggle("hidden",!keys.length);
   $(".dfoot").classList.toggle("hidden",!keys.length);
-  $("#send").disabled=!keys.length;
+  $("#send").disabled=!keys.length||!ST.open;
+  $("#send").textContent=ST.open?"Enviar pedido no WhatsApp":"Loja fechada";
 }
 function toast(msg){const t=$("#toast");t.textContent=msg;t.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display="none",3200);}
 function waLink(text){return `https://wa.me/${CONFIG.whatsapp}${text?`?text=${encodeURIComponent(text)}`:""}`;}
 
 async function send(){
+  const sNow=storeState();
+  if(!sNow.open){applyStatus();toast(`Loja fechada no momento. ${reopenText()}`);return;}
+  if(ent==="Entrega"&&!sNow.delivery){applyStatus();toast("A entrega acabou de encerrar. Agora só retirada na loja.");return;}
   const nome=$("#nome").value.trim(),end=$("#end").value.trim();
   $("#nome").classList.toggle("bad",!nome);
   if(!nome){toast("Informe seu nome para enviar o pedido.");$("#nome").focus();return;}
@@ -650,7 +732,16 @@ async function send(){
     const {error}=await sb.from("orders").insert({customer_name:nome,delivery_method:ent,address:ent==="Entrega"?end:null,reference:$("#ref").value.trim()||null,payment_method:pay,change_for:pay==="Dinheiro"?$("#troco-in").value.trim()||null:null,notes:$("#obs").value.trim()||null,
       items:Object.keys(cart).map(k=>{const i=lineInfo(k),tk=k.split("|")[1],type=tk==="u"?"unit":"case",caseQty=unitsPer(i.p,tk);return {product_id:i.p.id,name:i.label,quantity:i.q,item_type:type,case_quantity:caseQty,stock_units:i.q*caseQty,unit_price:i.price,subtotal:i.sub}}),
       total:Number(total().toFixed(2)),status:"novo"});
-    if(error)console.warn("Pedido não foi salvo no banco; enviando pelo WhatsApp normalmente.",error.message);
+    if(error){
+      const msg=String(error.message||"");
+      if(/LOJA_FECHADA|ENTREGA_ENCERRADA/.test(msg)){
+        if(waWindow)waWindow.close();
+        applyStatus();
+        toast(msg.includes("ENTREGA")?"A entrega já encerrou. Escolha retirada na loja.":`Loja fechada no momento. ${reopenText()}`);
+        return;
+      }
+      console.warn("Pedido não foi salvo no banco; enviando pelo WhatsApp normalmente.",msg);
+    }
   }catch(err){console.warn("Pedido não foi salvo no banco; enviando pelo WhatsApp normalmente.",err.message);}
   if(waWindow)waWindow.location.href=waLink(m);else toast("O navegador bloqueou a nova aba. Permita pop-ups para abrir o WhatsApp.");
 }
